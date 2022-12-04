@@ -3,7 +3,25 @@ import json
 import pandas as pd
 template = '/vol{vol}/part{part}/{article}/info/'
 head = 'https://basket-0{i}.wb.ru'
+import requests
+import json
+import pandas as pd
 
+def parse_card(article):
+    data = {
+        'article': int(article),
+    }
+    head = make_head(int(article))
+    tail = make_tail(str(article), 'ru/card.json')
+
+    url1 = head + tail
+    response1 = requests.get(url1)
+    data['card'] = json.loads(response1.text) if response1.status_code == 200 else f'{article} does not exist'
+
+    url2 = f'https://card.wb.ru/cards/detail?spp=28&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&pricemarginCoeff=1.0&reg=1&appType=1&emp=0&locale=ru&lang=ru&curr=rub&couponsGeo=12,3,18,15,21&sppFixGeo=4&dest=-1029256,-102269,-2162196,-1257786&nm={article}'
+    response2 = requests.get(url2)
+    data['detail1'] = json.loads(response2.text) if response2.status_code == 200 else f'{article} does not exist'
+    return {"article": data}
 
 def make_head(article: int):
     global head
@@ -76,12 +94,16 @@ def make_tail(article: str, item: str):
         }
         return template.format(**args) + item
 
+
 def get_catalogs_wb():
     """получение каталога вб"""
     url = 'https://www.wildberries.ru/webapi/menu/main-menu-ru-ru.json'
     headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     response = requests.get(url, headers=headers)
     data = response.json()
+    with open('wb_catalogs_data.json', 'w', encoding='UTF-8') as file:
+        json.dump(data, file, indent=2, ensure_ascii=False)
+        print(f'Данные сохранены в wb_catalogs_data_sample.json')
     data_list = []
     for d in data:
         try:
@@ -109,6 +131,20 @@ def get_catalogs_wb():
                             'category_url': category_url,
                             'shard': shard,
                             'query': query})
+                        try:
+                            for sub_sub_child in sub_child['childs']:
+                                category_name = sub_sub_child['name']
+                                category_url = sub_sub_child['url']
+                                shard = sub_sub_child['shard']
+                                query = sub_sub_child['query']
+                                data_list.append({
+                                    'category_name': category_name,
+                                    'category_url': category_url,
+                                    'shard': shard,
+                                    'query': query})
+                        except:
+                            # print(f'не имеет дочерних каталогов *{j["name"]}*')
+                            continue
                 except:
                     # print(f'не имеет дочерних каталогов *{i["name"]}*')
                     continue
@@ -122,6 +158,7 @@ def search_category_in_catalog(url, catalog_list):
     """пишем проверку пользовательской ссылки на наличии в каталоге"""
     try:
         for catalog in catalog_list:
+
             if catalog['category_url'] == url.split('https://www.wildberries.ru')[-1]:
                 print(f'найдено совпадение: {catalog["category_name"]}')
                 name_category = catalog['category_name']
@@ -143,17 +180,20 @@ def get_data_from_json(json_file):
             price = int(data["priceU"] / 100)
         except:
             price = 0
+        article = data['id']
+        extra_data = parse_card(article)
         data_list.append({
             'Наименование': data['name'],
             'id': data['id'],
-            'Скидка': data['sale'],
+            'Скидка': article,
             'Цена': price,
             'Цена со скидкой': int(data["salePriceU"] / 100),
             'Бренд': data['brand'],
             'id бренда': int(data['brandId']),
             'feedbacks': data['feedbacks'],
             'rating': data['rating'],
-            'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'
+            'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP',
+            'rot_Ebal': extra_data
         })
     return data_list
 
@@ -185,7 +225,7 @@ def get_content(shard, query, low_price=None, top_price=None):
 def save_excel(data, filename):
     """сохранение результата в excel файл"""
     df = pd.DataFrame(data)
-    writer = pd.ExcelWriter(f'temporary_files/{filename}.xlsx')
+    writer = pd.ExcelWriter(f'{filename}.xlsx')
     df.to_excel(writer, 'data')
     writer.save()
     print(f'Все сохранено в {filename}.xlsx')
@@ -195,10 +235,13 @@ def parser(url, low_price, top_price):
     # получаем список каталогов
     catalog_list = get_catalogs_wb()
     try:
+        # поиск введенной категории в общем каталоге
         name_category, shard, query = search_category_in_catalog(url=url, catalog_list=catalog_list)
+        # сбор данных в найденном каталоге
         data_list = get_content(shard=shard, query=query, low_price=low_price, top_price=top_price)
-        file_name = f'{name_category}_from_{low_price}_to_{top_price}'
-        return data_list, file_name + '.xlsx'
+        return data_list
+        # сохранение найденных данных
+        # save_excel(data_list, f'{name_category}_from_{low_price}_to_{top_price}')
     except TypeError:
         print('Ошибка! Возможно не верно указан раздел. Удалите все доп фильтры с ссылки')
     except PermissionError:

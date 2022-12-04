@@ -4,7 +4,7 @@ from fastapi import FastAPI
 import xlsxwriter
 from starlette.requests import Request
 from starlette.responses import FileResponse, StreamingResponse
-from utils import make_tail, make_head, get_catalogs_wb, parser
+from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card
 import random
 import json
 import io
@@ -14,21 +14,8 @@ app = FastAPI()
 
 @app.get("/products/{article}/")
 async def read_item(article):
-    data_range = range(1669548322, 1669631381)
-    data = {
-        'article': int(article),
-        'timestamp': float(random.randrange(1669548322, 1669631381))
-    }
-    head = make_head(int(article))
-    tail = make_tail(str(article), 'ru/card.json')
-
-    url1 = head + tail
-    response1 = requests.get(url1)
-    data['card'] = json.loads(response1.text) if response1.status_code == 200 else f'{article} does not exist'
-
-    url2 = f'https://card.wb.ru/cards/detail?spp=28&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&pricemarginCoeff=1.0&reg=1&appType=1&emp=0&locale=ru&lang=ru&curr=rub&couponsGeo=12,3,18,15,21&sppFixGeo=4&dest=-1029256,-102269,-2162196,-1257786&nm={article}'
-    response2 = requests.get(url2)
-    data['detail1'] = json.loads(response2.text) if response2.status_code == 200 else f'{article} does not exist'
+    data = parse_card(article)
+    data['timestamp'] = float(random.randrange(1669548322, 1669631381))
     return {"article": data}
 
 
@@ -71,7 +58,7 @@ async def get_data(request: Request, category_url, price_ot, price_do):
         price_ot = int(price_ot)
         price_do = int(price_do)
         url = f'https://www.wildberries.ru{category_url}'
-        data_list, file_name = parser(url, low_price=price_ot, top_price=price_do)
+        data_list = parser(url, low_price=price_ot, top_price=price_do)
 
         df = pd.DataFrame(data_list)
         output = io.BytesIO()
