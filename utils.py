@@ -193,7 +193,7 @@ def get_data_from_json(json_file):
             'feedbacks': data['feedbacks'],
             'rating': data['rating'],
             'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP',
-            'rot_Ebal': extra_data
+            'card_detail_data': extra_data
         })
     return data_list
 
