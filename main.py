@@ -1,9 +1,8 @@
 import uvicorn as uvicorn
 import requests
 from fastapi import FastAPI
-import xlsxwriter
 from starlette.requests import Request
-from starlette.responses import FileResponse, StreamingResponse
+from starlette.responses import StreamingResponse
 from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card
 import random
 import json
@@ -93,6 +92,6 @@ if __name__ == '__main__':
     uvicorn.run(
         app='main:app',
         host='0.0.0.0',
-        port=8001,
+        port=8000,
         reload=True
     )

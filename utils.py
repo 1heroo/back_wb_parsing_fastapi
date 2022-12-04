@@ -1,14 +1,16 @@
 import asyncio
-
+import requests
+import json
+import pandas as pd
 import aiohttp
 import requests
 import json
 import pandas as pd
+
+
 template = '/vol{vol}/part{part}/{article}/info/'
 head = 'https://basket-0{i}.wb.ru'
-import requests
-import json
-import pandas as pd
+
 
 
 async def parse_card(article):
