@@ -7,6 +7,7 @@ from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card
 import random
 import json
 import io
+import xlsxwriter
 import pandas as pd
 app = FastAPI()
 
