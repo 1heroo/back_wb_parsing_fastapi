@@ -14,7 +14,7 @@ app = FastAPI()
 
 @app.get("/products/{article}/")
 async def read_item(article):
-    data = parse_card(article)
+    data = await parse_card(article)
     data['timestamp'] = float(random.randrange(1669548322, 1669631381))
     return {"article": data}
 
@@ -58,7 +58,7 @@ async def get_data(request: Request, category_url, price_ot, price_do):
         price_ot = int(price_ot)
         price_do = int(price_do)
         url = f'https://www.wildberries.ru{category_url}'
-        data_list = parser(url, low_price=price_ot, top_price=price_do)
+        data_list = await parser(url, low_price=price_ot, top_price=price_do)
 
         df = pd.DataFrame(data_list)
         output = io.BytesIO()

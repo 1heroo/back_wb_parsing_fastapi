@@ -1,3 +1,6 @@
+import asyncio
+
+import aiohttp
 import requests
 import json
 import pandas as pd
@@ -7,7 +10,8 @@ import requests
 import json
 import pandas as pd
 
-def parse_card(article):
+
+async def parse_card(article):
     data = {
         'article': int(article),
     }
@@ -15,12 +19,14 @@ def parse_card(article):
     tail = make_tail(str(article), 'ru/card.json')
 
     url1 = head + tail
-    response1 = requests.get(url1)
-    data['card'] = json.loads(response1.text) if response1.status_code == 200 else f'{article} does not exist'
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url=url1) as response1:
+            data['card'] = json.loads(await response1.text()) if response1.status == 200 else f'{article} does not exist'
 
-    url2 = f'https://card.wb.ru/cards/detail?spp=28&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&pricemarginCoeff=1.0&reg=1&appType=1&emp=0&locale=ru&lang=ru&curr=rub&couponsGeo=12,3,18,15,21&sppFixGeo=4&dest=-1029256,-102269,-2162196,-1257786&nm={article}'
-    response2 = requests.get(url2)
-    data['detail1'] = json.loads(response2.text) if response2.status_code == 200 else f'{article} does not exist'
+
+        url2 = f'https://card.wb.ru/cards/detail?spp=28&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&pricemarginCoeff=1.0&reg=1&appType=1&emp=0&locale=ru&lang=ru&curr=rub&couponsGeo=12,3,18,15,21&sppFixGeo=4&dest=-1029256,-102269,-2162196,-1257786&nm={article}'
+        async with session.get(url=url2) as response2:
+            data['detail1'] = json.loads(await response2.text()) if response2.status == 200 else f'{article} does not exist'
     return {"article": data}
 
 def make_head(article: int):
@@ -101,9 +107,6 @@ def get_catalogs_wb():
     headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     response = requests.get(url, headers=headers)
     data = response.json()
-    with open('wb_catalogs_data.json', 'w', encoding='UTF-8') as file:
-        json.dump(data, file, indent=2, ensure_ascii=False)
-        print(f'Данные сохранены в wb_catalogs_data_sample.json')
     data_list = []
     for d in data:
         try:
@@ -172,7 +175,7 @@ def search_category_in_catalog(url, catalog_list):
         print('Данный раздел не найден!')
 
 
-def get_data_from_json(json_file):
+async def get_data_from_json(json_file):
     """извлекаем из json интересующие нас данные"""
     data_list = []
     for data in json_file['data']['products']:
@@ -181,7 +184,8 @@ def get_data_from_json(json_file):
         except:
             price = 0
         article = data['id']
-        extra_data = parse_card(article)
+        # extra_data = await parse_card(article)
+
         data_list.append({
             'Наименование': data['name'],
             'id': data['id'],
@@ -193,12 +197,12 @@ def get_data_from_json(json_file):
             'feedbacks': data['feedbacks'],
             'rating': data['rating'],
             'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP',
-            'card_detail_data': extra_data
+            # 'card_detail': extra_data
         })
     return data_list
 
 
-def get_content(shard, query, low_price=None, top_price=None):
+async def get_content(shard, query, low_price=None, top_price=None):
     # вставляем ценовые рамки для уменьшения выдачи, вилбериес отдает только 100 страниц
     headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     data_list = []
@@ -213,12 +217,15 @@ def get_content(shard, query, low_price=None, top_price=None):
               f'&reg=0&regions=64,83,4,38,80,33,70,82,86,30,69,1,48,22,66,31,40&sort=popular&spp=0&{query}'
         r = requests.get(url, headers=headers)
         data = r.json()
-        print(f'Добавлено позиций: {len(get_data_from_json(data))}')
-        if len(get_data_from_json(data)) > 0:
-            data_list.extend(get_data_from_json(data))
+
+        get_data = await get_data_from_json(data)
+        print(f'Добавлено позиций: {len(get_data)}')
+        if len(get_data) > 0:
+            data_list.extend(get_data)
         else:
             print(f'Сбор данных завершен.')
             break
+
     return data_list
 
 
@@ -231,14 +238,14 @@ def save_excel(data, filename):
     print(f'Все сохранено в {filename}.xlsx')
 
 
-def parser(url, low_price, top_price):
+async def parser(url, low_price, top_price):
     # получаем список каталогов
     catalog_list = get_catalogs_wb()
     try:
         # поиск введенной категории в общем каталоге
         name_category, shard, query = search_category_in_catalog(url=url, catalog_list=catalog_list)
         # сбор данных в найденном каталоге
-        data_list = get_content(shard=shard, query=query, low_price=low_price, top_price=top_price)
+        data_list = await get_content(shard=shard, query=query, low_price=low_price, top_price=top_price)
         return data_list
         # сохранение найденных данных
         # save_excel(data_list, f'{name_category}_from_{low_price}_to_{top_price}')
