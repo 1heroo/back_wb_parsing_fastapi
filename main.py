@@ -67,7 +67,7 @@ async def get_data(request: Request, category_url, price_ot, price_do):
         writer.save()
         return StreamingResponse(io.BytesIO(output.getvalue()), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
     except Exception as e:
-        return {'Ошибка фильтрации': f'{e}'}
+        return {'Ошибка': f'{e}'}
 
 
 """
