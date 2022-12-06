@@ -183,46 +183,50 @@ async def get_data_from_json(json_file):
         except:
             price = 0
         article = data['id']
-        extra_data = await parse_card(article)
-        card = extra_data['article']['card']
+        # extra_data = await parse_card(article)
+        # print(extra_data['article']['card']['subj_root_name'], article)
+        head = make_head(int(article))
+        tail = make_tail(str(article), 'ru/card.json')
+
+        url1 = head + tail
+        card = json.loads(requests.get(url1).text)
+
+        # card = extra_data['article']['card']
+        option_list = ['Ширина упаковки', 'Высота упаковки', 'Длина упаковки', 'Страна производства', 'ТНВЭД']
         output_data = {
             'id': data['id'],
             'Наименование': data['name'],
-            'Категория(subj_root_name)': card['subj_root_name'],
-            'Подкатегория(subj_name)': card['subj_name'],
-            'Вид Категории(imt_name)': card['imt_name'],
-            'Вендор Код(vendor_code)': card['vendor_code'],
-            'Цвет (color)': card['nm_colors_names'],
+            # 'Категория(subj_root_name)': card['subj_root_name'],
+            # 'Подкатегория(subj_name)': card['subj_name'],
+            # 'Вид Категории(imt_name)': card['imt_name'],
+            # 'Вендор Код(vendor_code)': card['vendor_code'],
+            # 'Цвет (color)': card['nm_colors_names'],
             'sale': data['sale'],
             'Цена': price,
             'Цена со скидкой': int(data["salePriceU"] / 100),
             'Бренд': data['brand'],
             'id бренда': int(data['brandId']),
-            'season': card.get('season', None),
+            # 'season': card.get('season', None),
             'Фото(pics)': int(data['pics']),
-            'Пол(kinds)': card['kinds'],
+            # 'Пол(kinds)': card['kinds'],
             'feedbacks': data['feedbacks'],
             'rating': data['rating'],
+            'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'
         }
-        option_list = ['Ширина упаковки', 'Высота упаковки', 'Длина упаковки', 'Страна производства', 'ТНВЭД']
-        for option in card['options']:
-            name = option['name']
-            if name in option_list:
-                output_data.update({name: option['value']})
 
-        output_data.update({'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'})
+        # for option in card['options']:
+        #     name = option['name']
+        #     if name in option_list:
+        #         output_data.update({name: option['value']})
+
         data_list.append(output_data)
     return data_list
 data_list = []
 
 
-async def get_page_content(page, shard, query, low_price=None, top_price=None):
+async def get_page_content(url):
     global data_list
     headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    print(f'Сбор позиций со страницы {page} из 100')
-    url = f'https://catalog.wb.ru/catalog/{shard}/catalog?appType=1&curr=rub&dest=-1075831,-77677,-398551,12358499' \
-          f'&locale=ru&page={page}&priceU={low_price * 100};{top_price * 100}' \
-          f'&reg=0&regions=64,83,4,38,80,33,70,82,86,30,69,1,48,22,66,31,40&sort=popular&spp=0&{query}'
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             data = json.loads(await response.text())
@@ -234,9 +238,12 @@ async def get_page_content(page, shard, query, low_price=None, top_price=None):
 async def get_content(shard, query, low_price=None, top_price=None):
     tasks = []
     for page in range(1, 101):
-        task = asyncio.create_task(get_page_content(page, shard, query, low_price, top_price))
+        url = f'https://catalog.wb.ru/catalog/{shard}/catalog?appType=1&curr=rub&dest=-1075831,-77677,-398551,12358499' \
+              f'&locale=ru&page={page}&priceU={low_price * 100};{top_price * 100}' \
+              f'&reg=0&regions=64,83,4,38,80,33,70,82,86,30,69,1,48,22,66,31,40&sort=popular&spp=0&{query}'
+        task = asyncio.create_task(get_page_content(url=url))
         tasks.append(task)
-    await asyncio.gather(*tasks, return_exceptions=True)
+    await asyncio.gather(*tasks)
     tasks = []
 
 
