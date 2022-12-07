@@ -1,3 +1,5 @@
+from time import perf_counter
+
 import uvicorn as uvicorn
 import requests
 from fastapi import FastAPI
@@ -53,7 +55,7 @@ async def get_cats():
 
 
 @app.post('/products-filtering/')
-async def get_data(request: Request, category_url, price_ot, price_do):
+async def get_data(category_url, price_ot, price_do):
     try:
         price_ot = int(price_ot)
         price_do = int(price_do)
@@ -61,11 +63,17 @@ async def get_data(request: Request, category_url, price_ot, price_do):
         data_list = await parser(url, low_price=price_ot, top_price=price_do)
 
         df = pd.DataFrame(data_list)
-        output = io.BytesIO()
-        writer = pd.ExcelWriter(output, engine='xlsxwriter')
-        df.to_excel(writer)
-        writer.save()
-        return StreamingResponse(io.BytesIO(output.getvalue()), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
+        start = perf_counter()
+        stream = io.StringIO()
+
+        df.to_csv(stream, index=False)
+
+        response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
+        response.headers["Content-Disposition"] = "attachment; filename=export.csv"
+        end = perf_counter()
+        print(f'{end - start:.8f} sec')
+        return response
+
     except Exception as e:
         return {'Ошибка': f'{e}'}
 
