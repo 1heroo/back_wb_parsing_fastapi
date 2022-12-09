@@ -55,24 +55,43 @@ async def get_cats():
 
 
 @app.post('/products-filtering/')
-async def get_data(category_url, price_ot, price_do):
+async def get_data(category_url, price_ot, price_do, seller_id=None, vendor_code=None, country=None):
     try:
         price_ot = int(price_ot)
         price_do = int(price_do)
         url = f'https://www.wildberries.ru{category_url}'
         data_list = await parser(url, low_price=price_ot, top_price=price_do)
+        data = pd.DataFrame(data_list)
+        filter = (data['Цена со скидкой'] > price_ot) & (data['Цена со скидкой'] < price_do)
+        data = data[filter]
 
-        df = pd.DataFrame(data_list)
-        start = perf_counter()
-        stream = io.StringIO()
+        if seller_id is not None:
+            data = data[data['seller_id'] == seller_id]
 
-        df.to_csv(stream, index=False)
+        if vendor_code is not None:
+            data = data[data['Вендор Код(vendor_code)'] == vendor_code]
 
-        response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
-        response.headers["Content-Disposition"] = "attachment; filename=export.csv"
-        end = perf_counter()
-        print(f'{end - start:.8f} sec')
-        return response
+        if country is not None:
+            data = data[data['Страна производства'] == country]
+
+        # if brand_id is not None:
+        #     data =
+
+        # start = perf_counter()
+        # stream = io.StringIO()
+        #
+        # df.to_csv(stream, index=False)
+        #
+        # response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
+        # response.headers["Content-Disposition"] = "attachment; filename=export.csv"
+        # end = perf_counter()
+        # print(f'{end - start:.8f} sec')
+        # return response
+        output = io.BytesIO()
+        writer = pd.ExcelWriter(output, engine='xlsxwriter')
+        data.to_excel(writer)
+        writer.save()
+        return StreamingResponse(io.BytesIO(output.getvalue()), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
 
     except Exception as e:
         return {'Ошибка': f'{e}'}

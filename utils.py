@@ -12,6 +12,7 @@ template = '/vol{vol}/part{part}/{article}/info/'
 head = 'https://basket-0{i}.wb.ru'
 
 
+
 async def parse_card(article):
     data = {
         'article': int(article),
@@ -23,7 +24,6 @@ async def parse_card(article):
     async with aiohttp.ClientSession() as session:
         async with session.get(url=url1) as response1:
             data['card'] = json.loads(await response1.text()) if response1.status == 200 else f'{article} does not exist'
-
 
         url2 = f'https://card.wb.ru/cards/detail?spp=28&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&pricemarginCoeff=1.0&reg=1&appType=1&emp=0&locale=ru&lang=ru&curr=rub&couponsGeo=12,3,18,15,21&sppFixGeo=4&dest=-1029256,-102269,-2162196,-1257786&nm={article}'
         async with session.get(url=url2) as response2:
@@ -110,7 +110,7 @@ def get_catalogs_wb():
     """получение каталога вб"""
     url = 'https://www.wildberries.ru/webapi/menu/main-menu-ru-ru.json'
     headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-    response = requests.get(url, headers=headers)
+    response = requests.get(url)
     data = response.json()
     data_list = []
     for d in data:
@@ -183,48 +183,52 @@ async def get_data_from_json(data):
         price = 0
     article = data['id']
     head = make_head(int(article))
-    tail = make_tail(str(article), 'ru/card.json')
-    url1 = head + tail
+    url1 = head + make_tail(str(article), 'ru/card.json')
+    url2 = head + make_tail(str(article), 'sellers.json')
     async with aiohttp.ClientSession() as session:
         async with session.get(url=url1) as response1:
             card = json.loads(await response1.text()) if response1.status == 200 else None
-            print(article)
+        async with session.get(url=url2) as response2:
+            seller = json.loads(await response2.text())
+
+    compositions = card.get('compositions', None)
 
     option_list = ['Ширина упаковки', 'Высота упаковки', 'Длина упаковки', 'Страна производства', 'ТНВЭД']
     output_data = {
         'id': data['id'],
-        'Наименование': data['name'],
-        'Категория(subj_root_name)': card['subj_root_name'],
-        'Подкатегория(subj_name)': card['subj_name'],
+        'Наименование': data.get('name', None),
+        'Категория(subj_root_name)': card.get('subj_root_name', None),
+        'Подкатегория(subj_name)': card.get('subj_name', None),
         'Вид Категории(imt_name)': card.get('imt_name', None),
-        'Вендор Код(vendor_code)': card['vendor_code'],
+        'Вендор Код(vendor_code)': card.get('vendor_code', None),
         'Цвет (color)': card.get('nm_colors_names', None),
-        'sale': data['sale'],
+        'seller_id': seller.get('supplierId', None),
+        'sale': data.get('sale', None),
         'Цена': price,
         'Цена со скидкой': int(data["salePriceU"] / 100),
-        'Бренд': data['brand'],
-        'id бренда': int(data['brandId']),
+        'Бренд': data.get('brand', None),
+        'id бренда': int(data.get('brandId', False)),
         'season': card.get('season', None),
-        'Фото(pics)': int(data['pics']),
-        'Пол(kinds)': card['kinds'],
-        'feedbacks': data['feedbacks'],
-        'rating': data['rating'],
-        'compositions': [item['name'] for item in card['compositions']],
+        'Фото(pics)': int(data.get('pics', False)),
+        'Пол(kinds)': card.get('kinds', None),
+        'feedbacks': data.get('feedbacks', None),
+        'rating': data.get('rating', None),
+        'compositions': [item['name'] for item in compositions] if not None else None,
         'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'
     }
-    for option in card['options']:
-        name = option['name']
-        if name in option_list:
-            output_data.update({name: option['value']})
+    options = card.get('options', None)
+    if options:
+        for option in options:
+            name = option['name']
+            if name in option_list:
+                output_data.update({name: option['value']})
     return output_data
 
-
-data_list = []
 
 
 async def get_page_content(url):
     tasks = []
-    global data_list
+    data_list = []
     headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
@@ -238,15 +242,17 @@ async def get_page_content(url):
             data_list.extend(curr_list)
             curr_list = []
             tasks = []
+            return data_list
 
 
 async def get_content(shard, query, low_price=None, top_price=None):
+    data_list = []
     for page in range(1, 101):
         url = f'https://catalog.wb.ru/catalog/{shard}/catalog?appType=1&curr=rub&dest=-1075831,-77677,-398551,12358499' \
               f'&locale=ru&page={page}&priceU={low_price * 100};{top_price * 100}' \
               f'&reg=0&regions=64,83,4,38,80,33,70,82,86,30,69,1,48,22,66,31,40&sort=popular&spp=0&{query}'
-        await get_page_content(url=url)
-
+        data_list += await get_page_content(url=url)
+    return data_list
 
 
 def save_excel(data, filename):
@@ -263,12 +269,13 @@ async def parser(url, low_price, top_price):
     catalog_list = get_catalogs_wb()
     try:
         start = perf_counter()
-        global data_list
+
         # поиск введенной категории в общем каталоге
         name_category, shard, query = search_category_in_catalog(url=url, catalog_list=catalog_list)
         # сбор данных в найденном каталоге
-        await get_content(shard=shard, query=query, low_price=low_price, top_price=top_price)
+        data_list = await get_content(shard=shard, query=query, low_price=low_price, top_price=top_price)
         end = perf_counter()
+
         print(f'time {end - start:.8f} sec')
         return data_list
         # сохранение найденных данных
