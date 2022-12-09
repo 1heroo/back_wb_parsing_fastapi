@@ -1,5 +1,7 @@
+import time
 from time import sleep
 
+import aiohttp
 import uvicorn as uvicorn
 import requests
 from fastapi import FastAPI
@@ -96,7 +98,21 @@ async def get_data(category_url, price_ot, price_do, vendor_code=None, country=N
 @app.post('/get-seller-table-in-excel/')
 async def get_seller_cards(seller_id):
     url = f"https://catalog.wb.ru/sellers/catalog?appType=1&couponsGeo=12,3,18,15,21&curr=rub&dest=-1029256,-102269,-2162196,-1257786&emp=0&lang=ru&locale=ru&pricemarginCoeff=1.0&reg=0&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&spp=0&supplier={int(seller_id)}"
-    data_list = await get_page_content(url)
+    # data_list = await get_page_content(url)
+    data_list = []
+    params = {'kind': 2, '_v': '9.3.39'}
+    headers = {'x-requested-with': 'XMLHttpRequest'}
+
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, params=params) as response:
+            data = json.loads(await response.text())
+            for item in data['data']['products']:
+                time.sleep(0.2)
+                try:
+                    data_list.append(await get_data_from_json(item))
+                except:
+                    continue
+
     data = pd.DataFrame(data_list)
 
     output = io.BytesIO()

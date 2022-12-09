@@ -214,7 +214,7 @@ async def get_data_from_json(data):
         'Пол(kinds)': card.get('kinds', None),
         'feedbacks': data.get('feedbacks', None),
         'rating': data.get('rating', None),
-        'compositions': [item['name'] for item in compositions] if not None else None,
+        'compositions': [item['name'] for item in compositions] if compositions is not None else None,
         'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'
     }
     options = card.get('options', None)
@@ -239,6 +239,7 @@ async def get_page_content(url):
                 tasks.append(task)
 
             curr_list = await asyncio.gather(*tasks, return_exceptions=True)
+
             curr_list = [item for item in curr_list if not isinstance(item, Exception)]
             data_list.extend(curr_list)
             curr_list = []
