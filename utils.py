@@ -245,7 +245,7 @@ async def get_page_content(url):
             return data_list
 
 
-async def get_content(shard, query, low_price=None, top_price=None):
+async def get_content_catalog(shard, query, low_price=None, top_price=None):
     data_list = []
     for page in range(1, 101):
         url = f'https://catalog.wb.ru/catalog/{shard}/catalog?appType=1&curr=rub&dest=-1075831,-77677,-398551,12358499' \
@@ -273,7 +273,7 @@ async def parser(url, low_price, top_price):
         # поиск введенной категории в общем каталоге
         name_category, shard, query = search_category_in_catalog(url=url, catalog_list=catalog_list)
         # сбор данных в найденном каталоге
-        data_list = await get_content(shard=shard, query=query, low_price=low_price, top_price=top_price)
+        data_list = await get_content_catalog(shard=shard, query=query, low_price=low_price, top_price=top_price)
         end = perf_counter()
 
         print(f'time {end - start:.8f} sec')
