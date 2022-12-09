@@ -1,11 +1,11 @@
-from time import perf_counter
+from time import sleep
 
 import uvicorn as uvicorn
 import requests
 from fastapi import FastAPI
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
-from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_page_content
+from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_page_content, get_data_from_json
 import random
 import json
 import io

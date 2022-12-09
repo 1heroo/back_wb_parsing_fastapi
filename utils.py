@@ -185,6 +185,7 @@ async def get_data_from_json(data):
     head = make_head(int(article))
     url1 = head + make_tail(str(article), 'ru/card.json')
     url2 = head + make_tail(str(article), 'sellers.json')
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url=url1) as response1:
             card = json.loads(await response1.text()) if response1.status == 200 else None
