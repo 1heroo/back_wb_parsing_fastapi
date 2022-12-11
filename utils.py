@@ -274,6 +274,26 @@ async def get_page_content(url):
             return data_list
 
 
+async def get_page_content2(url):
+    tasks = []
+    data_list = []
+    headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
+            data = json.loads(await response.text())
+            for item in data['data']['products']:
+                task = asyncio.create_task(get_data_from_json2(item))
+                tasks.append(task)
+
+            curr_list = await asyncio.gather(*tasks, return_exceptions=True)
+
+            curr_list = [item for item in curr_list if not isinstance(item, Exception)]
+            data_list.extend(curr_list)
+            curr_list = []
+            tasks = []
+            return data_list
+
+
 async def get_content_catalog(shard, query, low_price=None, top_price=None):
     data_list = []
     for page in range(1, 101):
@@ -290,7 +310,7 @@ async def get_content_catalog2(article):
         url = f'https://catalog.wb.ru/sellers/catalog?appType=1&couponsGeo=12,3,18,15,21&curr=rub&dest=-1029256,-102269,-2162196,-1257786'\
               f'&emp=0&lang=ru&locale=ru&page={page}&pricemarginCoeff=1.0&reg=0&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71'\
                                                                                  f'&sort=popular&spp=0&supplier={article}'
-        data_list += await get_page_content(url=url)
+        data_list += await get_page_content2(url=url)
     return data_list
 
 
@@ -323,13 +343,3 @@ async def parser(url, low_price, top_price):
         print('Ошибка! Возможно не верно указан раздел. Удалите все доп фильтры с ссылки')
     except PermissionError:
         print('Ошибка! Вы забыли закрыть созданный ранее excel файл. Закройте и повторите попытку')
-
-
-def write_in_xlsx(data):
-    output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    data.to_excel(writer)
-    writer.save()
-    return StreamingResponse(io.BytesIO(output.getvalue()),
-                             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                             headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})

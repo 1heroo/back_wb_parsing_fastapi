@@ -6,7 +6,7 @@ import uvicorn as uvicorn
 import requests
 from fastapi import FastAPI
 from starlette.responses import StreamingResponse
-from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_content_catalog2, write_in_xlsx
+from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_content_catalog2
 import random
 import json
 import io
@@ -75,7 +75,13 @@ async def get_data(category_url, price_ot, price_do, vendor_code=None, country=N
         if country is not None:
             data = data[data['Страна производства'] == country]
 
-        return write_in_xlsx(data)
+        output = io.BytesIO()
+        writer = pd.ExcelWriter(output, engine='xlsxwriter')
+        data.to_excel(writer)
+        writer.save()
+        return StreamingResponse(io.BytesIO(output.getvalue()),
+                                 media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                 headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
 
     except Exception as e:
         return {'Ошибка': f'{e}'}
@@ -86,7 +92,13 @@ async def get_seller_cards(seller_id):
     data_list = await get_content_catalog2(seller_id)
     data = pd.DataFrame(data_list)
 
-    return write_in_xlsx(data)
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    data.to_excel(writer)
+    writer.save()
+    return StreamingResponse(io.BytesIO(output.getvalue()),
+                             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                             headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
 
 
 """
