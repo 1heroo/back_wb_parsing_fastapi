@@ -8,6 +8,10 @@ import json
 import pandas as pd
 from time import perf_counter
 
+import io
+
+from starlette.responses import StreamingResponse
+
 template = '/vol{vol}/part{part}/{article}/info/'
 head = 'https://basket-0{i}.wb.ru'
 
@@ -226,6 +230,29 @@ async def get_data_from_json(data):
     return output_data
 
 
+async def get_data_from_json2(data):
+    try:
+        price = int(data["priceU"] / 100)
+    except:
+        price = 0
+    article = data['id']
+
+    output_data = {
+        'id': data['id'],
+        'Наименование': data.get('name', None),
+        'sale': data.get('sale', None),
+        'Цена': price,
+        'Цена со скидкой': int(data["salePriceU"] / 100),
+        'Бренд': data.get('brand', None),
+        'id бренда': int(data.get('brandId', False)),
+        'Фото(pics)': int(data.get('pics', False)),
+        'feedbacks': data.get('feedbacks', None),
+        'rating': data.get('rating', None),
+        'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'
+    }
+
+    return output_data
+
 
 async def get_page_content(url):
     tasks = []
@@ -253,6 +280,16 @@ async def get_content_catalog(shard, query, low_price=None, top_price=None):
         url = f'https://catalog.wb.ru/catalog/{shard}/catalog?appType=1&curr=rub&dest=-1075831,-77677,-398551,12358499' \
               f'&locale=ru&page={page}&priceU={low_price * 100};{top_price * 100}' \
               f'&reg=0&regions=64,83,4,38,80,33,70,82,86,30,69,1,48,22,66,31,40&sort=popular&spp=0&{query}'
+        data_list += await get_page_content(url=url)
+    return data_list
+
+
+async def get_content_catalog2(article):
+    data_list = []
+    for page in range(1, 101):
+        url = f'https://catalog.wb.ru/sellers/catalog?appType=1&couponsGeo=12,3,18,15,21&curr=rub&dest=-1029256,-102269,-2162196,-1257786'\
+              f'&emp=0&lang=ru&locale=ru&page={page}&pricemarginCoeff=1.0&reg=0&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71'\
+                                                                                 f'&sort=popular&spp=0&supplier={article}'
         data_list += await get_page_content(url=url)
     return data_list
 
@@ -288,6 +325,11 @@ async def parser(url, low_price, top_price):
         print('Ошибка! Вы забыли закрыть созданный ранее excel файл. Закройте и повторите попытку')
 
 
-# data = parser('/catalog/sport/dlya-detey/odezhda/dzhempery-i-tolstovki', 100, 900)
-# df = pd.DataFrame(data)
-# df.to_csv('csv.csv')
+def write_in_xlsx(data):
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    data.to_excel(writer)
+    writer.save()
+    return StreamingResponse(io.BytesIO(output.getvalue()),
+                             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                             headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})

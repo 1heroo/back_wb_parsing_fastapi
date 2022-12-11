@@ -5,14 +5,15 @@ import aiohttp
 import uvicorn as uvicorn
 import requests
 from fastapi import FastAPI
-from starlette.requests import Request
 from starlette.responses import StreamingResponse
-from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_page_content, get_data_from_json
+from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_content_catalog2, write_in_xlsx
 import random
 import json
 import io
 import xlsxwriter
 import pandas as pd
+
+
 app = FastAPI()
 
 
@@ -34,7 +35,7 @@ async def price(article):
     return {f'{article}': data}
 
 
-@app.get('/get-seller-data/{seller_article}/')
+# @app.get('/get-seller-data/{seller_article}/')
 async def get_seller(seller_article):
     data = {
         'seller_article': int(seller_article)
@@ -45,8 +46,9 @@ async def get_seller(seller_article):
     is_unknown = check_seller.get('isUnknown')
     data['seller_info'] = json.loads(response1) if not is_unknown else f"Seller under article {seller_article} does not exist"
 
+    seller_products = []
     url2 = f'https://catalog.wb.ru/sellers/catalog?appType=1&couponsGeo=12,3,18,15,21&curr=rub&dest=-1029256,-102269,-2162196,-1257786&emp=0&lang=ru&locale=ru&pricemarginCoeff=1.0&reg=1&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&spp=28&sppFixGeo=4&supplier={seller_article}'
-    data['sellers_products'] = json.loads(requests.get(url2).text)
+    seller_products += [json.loads(requests.get(url2).text)]
 
     return data
 
@@ -73,55 +75,18 @@ async def get_data(category_url, price_ot, price_do, vendor_code=None, country=N
         if country is not None:
             data = data[data['Страна производства'] == country]
 
-        # if brand_id is not None:
-        #     data =
-
-        # start = perf_counter()
-        # stream = io.StringIO()
-        #
-        # df.to_csv(stream, index=False)
-        #
-        # response = StreamingResponse(iter([stream.getvalue()]), media_type="text/csv")
-        # response.headers["Content-Disposition"] = "attachment; filename=export.csv"
-        # end = perf_counter()
-        # print(f'{end - start:.8f} sec')
-        # return response
-        output = io.BytesIO()
-        writer = pd.ExcelWriter(output, engine='xlsxwriter')
-        data.to_excel(writer)
-        writer.save()
-        return StreamingResponse(io.BytesIO(output.getvalue()), media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
+        return write_in_xlsx(data)
 
     except Exception as e:
         return {'Ошибка': f'{e}'}
 
+
 @app.post('/get-seller-table-in-excel/')
 async def get_seller_cards(seller_id):
-    url = f"https://catalog.wb.ru/sellers/catalog?appType=1&couponsGeo=12,3,18,15,21&curr=rub&dest=-1029256,-102269,-2162196,-1257786&emp=0&lang=ru&locale=ru&pricemarginCoeff=1.0&reg=0&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&spp=0&supplier={int(seller_id)}"
-    # data_list = await get_page_content(url)
-    data_list = []
-    params = {'kind': 2, '_v': '9.3.39'}
-    headers = {'x-requested-with': 'XMLHttpRequest'}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers, params=params) as response:
-            data = json.loads(await response.text())
-            for item in data['data']['products']:
-                time.sleep(0.2)
-                try:
-                    data_list.append(await get_data_from_json(item))
-                except:
-                    continue
-
+    data_list = await get_content_catalog2(seller_id)
     data = pd.DataFrame(data_list)
 
-    output = io.BytesIO()
-    writer = pd.ExcelWriter(output, engine='xlsxwriter')
-    data.to_excel(writer)
-    writer.save()
-    return StreamingResponse(io.BytesIO(output.getvalue()),
-                             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                             headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
+    return write_in_xlsx(data)
 
 
 """
