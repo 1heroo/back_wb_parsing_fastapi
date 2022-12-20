@@ -25,7 +25,6 @@ async def parse_card(article):
         url2 = f'https://card.wb.ru/cards/detail?spp=28&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&pricemarginCoeff=1.0&reg=1&appType=1&emp=0&locale=ru&lang=ru&curr=rub&couponsGeo=12,3,18,15,21&sppFixGeo=4&dest=-1029256,-102269,-2162196,-1257786&nm={article}'
         async with session.get(url=url2) as response2:
             data['detail1'] = json.loads(await response2.text()) if response2.status == 200 else f'{article} does not exist'
-    print(article)
     return {"article": data}
 
 
@@ -186,12 +185,10 @@ async def get_data_from_json(data):
 
     compositions = card.get('compositions', None)
 
-    option_list = ['Ширина упаковки', 'Высота упаковки', 'Длина упаковки', 'Страна производства', 'ТНВЭД']
     seller = card.get('selling', None)
     if seller:
         seller = seller.get('supplier_id')
 
-    print(seller)
     output_data = {
         'id': article,
         'Наименование': data.get('name', None),
@@ -214,6 +211,7 @@ async def get_data_from_json(data):
         'compositions': [item['name'] for item in compositions] if compositions is not None else None,
         'Ссылка': f'https://www.wildberries.ru/catalog/{article}/detail.aspx?targetUrl=BP'
     }
+    option_list = ['Ширина упаковки', 'Высота упаковки', 'Длина упаковки', 'Страна производства', 'ТНВЭД']
     options = card.get('options', None)
     if options:
         for option in options:
@@ -324,6 +322,7 @@ async def parser(category_url, low_price, top_price):
 
         for cat_url in category_list:
             data_list += await parser(category_url=cat_url, low_price=low_price, top_price=top_price)
+            print('iteration of ', cat_url)
         return data_list
     except PermissionError:
         print('Ошибка! Вы забыли закрыть созданный ранее excel файл. Закройте и повторите попытку')
