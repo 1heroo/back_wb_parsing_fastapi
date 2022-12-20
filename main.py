@@ -6,7 +6,7 @@ import uvicorn as uvicorn
 import requests
 from fastapi import FastAPI
 from starlette.responses import StreamingResponse
-from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_content_catalog2
+from utils import make_tail, make_head, get_catalogs_wb, parser, parse_card, get_content_catalog2, get_content_catalog
 import random
 import json
 import io
@@ -63,8 +63,7 @@ async def get_data(category_url, price_ot, price_do, vendor_code=None, country=N
     try:
         price_ot = int(price_ot)
         price_do = int(price_do)
-        url = f'https://www.wildberries.ru{category_url}'
-        data_list = await parser(url, low_price=price_ot, top_price=price_do)
+        data_list = await parser(category_url, low_price=price_ot, top_price=price_do)
         data = pd.DataFrame(data_list)
         filter = (data['Цена со скидкой'] > price_ot) & (data['Цена со скидкой'] < price_do)
         data = data[filter]
@@ -82,14 +81,13 @@ async def get_data(category_url, price_ot, price_do, vendor_code=None, country=N
         return StreamingResponse(io.BytesIO(output.getvalue()),
                                  media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                                  headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
-
     except Exception as e:
         return {'Ошибка': f'{e}'}
 
 
 @app.post('/get-seller-table-in-excel/')
 async def get_seller_cards(seller_id):
-    data_list = await get_content_catalog2(seller_id)
+    data_list = await get_content_catalog(seller_id)
     data = pd.DataFrame(data_list)
 
     output = io.BytesIO()
@@ -100,25 +98,6 @@ async def get_seller_cards(seller_id):
                              media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                              headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
 
-
-"""
-returning xlsx file
-@app.get("/payments/xlsx", response_description='xlsx')
-async def payments():
-    output = io.BytesIO()
-    workbook = xlsxwriter.Workbook(output)
-    worksheet = workbook.add_worksheet()
-    worksheet.write(0, 0, 'ISBN')
-    worksheet.write(0, 1, 'Name')
-    worksheet.write(0, 2, 'Takedown date')
-    worksheet.write(0, 3, 'Last updated')
-    workbook.close()
-    output.seek(0)
-    headers = {
-        'Content-Disposition': 'attachment; filename="lol.xlsx"'
-    }
-    return StreamingResponse(output, headers=headers)
-"""
 
 if __name__ == '__main__':
     uvicorn.run(

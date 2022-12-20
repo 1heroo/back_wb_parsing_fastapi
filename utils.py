@@ -1,20 +1,13 @@
 import asyncio
-import requests
-import json
-import pandas as pd
 import aiohttp
 import requests
 import json
 import pandas as pd
 from time import perf_counter
-
-import io
-
-from starlette.responses import StreamingResponse
+from cats import categories
 
 template = '/vol{vol}/part{part}/{article}/info/'
 head = 'https://basket-0{i}.wb.ru'
-
 
 
 async def parse_card(article):
@@ -155,13 +148,10 @@ def get_catalogs_wb():
                                     'shard': shard,
                                     'query': query})
                         except:
-                            # print(f'не имеет дочерних каталогов *{j["name"]}*')
                             continue
                 except:
-                    # print(f'не имеет дочерних каталогов *{i["name"]}*')
                     continue
         except:
-            # print(f'не имеет дочерних каталогов *{d["name"]}*')
             continue
     return data_list
 
@@ -193,21 +183,24 @@ async def get_data_from_json(data):
     async with aiohttp.ClientSession() as session:
         async with session.get(url=url1) as response1:
             card = json.loads(await response1.text()) if response1.status == 200 else None
-        async with session.get(url=url2) as response2:
-            seller = json.loads(await response2.text())
 
     compositions = card.get('compositions', None)
 
     option_list = ['Ширина упаковки', 'Высота упаковки', 'Длина упаковки', 'Страна производства', 'ТНВЭД']
+    seller = card.get('selling', None)
+    if seller:
+        seller = seller.get('supplier_id')
+
+    print(seller)
     output_data = {
-        'id': data['id'],
+        'id': article,
         'Наименование': data.get('name', None),
         'Категория(subj_root_name)': card.get('subj_root_name', None),
         'Подкатегория(subj_name)': card.get('subj_name', None),
         'Вид Категории(imt_name)': card.get('imt_name', None),
         'Вендор Код(vendor_code)': card.get('vendor_code', None),
         'Цвет (color)': card.get('nm_colors_names', None),
-        'seller_id': seller.get('supplierId', None),
+        'seller_id': seller,
         'sale': data.get('sale', None),
         'Цена': price,
         'Цена со скидкой': int(data["salePriceU"] / 100),
@@ -219,7 +212,7 @@ async def get_data_from_json(data):
         'feedbacks': data.get('feedbacks', None),
         'rating': data.get('rating', None),
         'compositions': [item['name'] for item in compositions] if compositions is not None else None,
-        'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'
+        'Ссылка': f'https://www.wildberries.ru/catalog/{article}/detail.aspx?targetUrl=BP'
     }
     options = card.get('options', None)
     if options:
@@ -238,7 +231,7 @@ async def get_data_from_json2(data):
     article = data['id']
 
     output_data = {
-        'id': data['id'],
+        'id': article,
         'Наименование': data.get('name', None),
         'sale': data.get('sale', None),
         'Цена': price,
@@ -248,7 +241,7 @@ async def get_data_from_json2(data):
         'Фото(pics)': int(data.get('pics', False)),
         'feedbacks': data.get('feedbacks', None),
         'rating': data.get('rating', None),
-        'Ссылка': f'https://www.wildberries.ru/catalog/{data["id"]}/detail.aspx?targetUrl=BP'
+        'Ссылка': f'https://www.wildberries.ru/catalog/{article}/detail.aspx?targetUrl=BP'
     }
 
     return output_data
@@ -314,32 +307,23 @@ async def get_content_catalog2(article):
     return data_list
 
 
-def save_excel(data, filename):
-    """сохранение результата в excel файл"""
-    df = pd.DataFrame(data)
-    writer = pd.ExcelWriter(f'{filename}.xlsx')
-    df.to_excel(writer, 'data')
-    writer.save()
-    print(f'Все сохранено в {filename}.xlsx')
-
-
-async def parser(url, low_price, top_price):
-    # получаем список каталогов
+async def parser(category_url, low_price, top_price):
     catalog_list = get_catalogs_wb()
+    url = f'https://www.wildberries.ru{category_url}'
     try:
         start = perf_counter()
-
-        # поиск введенной категории в общем каталоге
         name_category, shard, query = search_category_in_catalog(url=url, catalog_list=catalog_list)
-        # сбор данных в найденном каталоге
         data_list = await get_content_catalog(shard=shard, query=query, low_price=low_price, top_price=top_price)
         end = perf_counter()
 
         print(f'time {end - start:.8f} sec')
         return data_list
-        # сохранение найденных данных
-        # save_excel(data_list, f'{name_category}_from_{low_price}_to_{top_price}')
     except TypeError:
-        print('Ошибка! Возможно не верно указан раздел. Удалите все доп фильтры с ссылки')
+        data_list = []
+        category_list = [cat for cat in categories if category_url in cat]
+
+        for cat_url in category_list:
+            data_list += await parser(category_url=cat_url, low_price=low_price, top_price=top_price)
+        return data_list
     except PermissionError:
         print('Ошибка! Вы забыли закрыть созданный ранее excel файл. Закройте и повторите попытку')
