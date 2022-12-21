@@ -60,34 +60,30 @@ async def get_cats():
 
 @app.post('/products-filtering/')
 async def get_data(category_url, price_ot, price_do, vendor_code=None, country=None):
-    try:
-        price_ot = int(price_ot)
-        price_do = int(price_do)
-        data_list = await parser(category_url, low_price=price_ot, top_price=price_do)
-        data = pd.DataFrame(data_list)
-        filter = (data['Цена со скидкой'] > price_ot) & (data['Цена со скидкой'] < price_do)
-        data = data[filter]
+    price_ot = int(price_ot)
+    price_do = int(price_do)
+    data_list = await parser(category_url, low_price=price_ot, top_price=price_do)
+    data = pd.DataFrame(data_list)
+    # filter = (data['Цена со скидкой'] > price_ot) & (data['Цена со скидкой'] < price_do)
+    # data = data[filter]
 
-        if vendor_code is not None:
-            data = data[data['Вендор Код(vendor_code)'] == vendor_code]
+    if vendor_code is not None:
+        data = data[data['Вендор Код(vendor_code)'] == vendor_code]
 
-        if country is not None:
-            data = data[data['Страна производства'] == country]
+    if country is not None:
+        data = data[data['Страна производства'] == country]
 
-        output = io.BytesIO()
-        writer = pd.ExcelWriter(output, engine='xlsxwriter')
-        data.to_excel(writer)
-        writer.save()
-        return StreamingResponse(io.BytesIO(output.getvalue()),
-                                 media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                 headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
-    except Exception as e:
-        return {'Ошибка': f'{e}'}
-
+    output = io.BytesIO()
+    writer = pd.ExcelWriter(output, engine='xlsxwriter')
+    data.to_excel(writer)
+    writer.save()
+    return StreamingResponse(io.BytesIO(output.getvalue()),
+                             media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                             headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
 
 @app.post('/get-seller-table-in-excel/')
 async def get_seller_cards(seller_id):
-    data_list = await get_content_catalog(seller_id)
+    data_list = await get_content_catalog2(seller_id)
     data = pd.DataFrame(data_list)
 
     output = io.BytesIO()

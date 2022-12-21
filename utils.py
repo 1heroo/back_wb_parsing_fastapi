@@ -177,17 +177,42 @@ async def get_data_from_json(data):
     article = data['id']
     head = make_head(int(article))
     url1 = head + make_tail(str(article), 'ru/card.json')
-    url2 = head + make_tail(str(article), 'sellers.json')
+    # url2 = head + make_tail(str(article), 'sellers.json')
+    url2 = f'https://card.wb.ru/cards/detail?spp=28&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71&pricemarginCoeff=1.0&reg=1&appType=1&emp=0&locale=ru&lang=ru&curr=rub&couponsGeo=12,3,18,15,21&sppFixGeo=4&dest=-1029256,-102269,-2162196,-1257786&nm={article}'
+    from aiohttp.client_exceptions import ClientConnectorError
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url=url1) as response1:
+                card = json.loads(await response1.text()) if response1.status == 200 else {}
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url=url1) as response1:
-            card = json.loads(await response1.text()) if response1.status == 200 else None
+            async with session.get(url=url2) as response2:
+                details = json.loads(await response2.text()).get('data').get('products') if response2.status == 200 else {}
+    except ClientConnectorError:
+        return {}
+
+    detail = details[0]
+    for instance in details:
+        if instance.get('id') == article:
+            detail = instance
+    sizes = detail.get('sizes')
+
+    wh_dict = {}
+    for size in sizes:
+        stocks = size.get('stocks')
+        for stock in stocks:
+            wh = f"wh {stock.get('wh')}"
+            qty = stock.get('qty')
+
+            if wh_dict.get(wh, None):
+                wh_dict[wh] += qty
+            else:
+                wh_dict[wh] = qty
 
     compositions = card.get('compositions', None)
 
     seller = card.get('selling', None)
     if seller:
-        seller = seller.get('supplier_id')
+        seller = seller.get('supplier_id', None)
 
     output_data = {
         'id': article,
@@ -208,7 +233,7 @@ async def get_data_from_json(data):
         'Пол(kinds)': card.get('kinds', None),
         'feedbacks': data.get('feedbacks', None),
         'rating': data.get('rating', None),
-        'compositions': [item['name'] for item in compositions] if compositions is not None else None,
+        'compositions': [item.get('name') for item in compositions] if compositions is not None else None,
         'Ссылка': f'https://www.wildberries.ru/catalog/{article}/detail.aspx?targetUrl=BP'
     }
     option_list = ['Ширина упаковки', 'Высота упаковки', 'Длина упаковки', 'Страна производства', 'ТНВЭД']
@@ -218,6 +243,7 @@ async def get_data_from_json(data):
             name = option['name']
             if name in option_list:
                 output_data.update({name: option['value']})
+    output_data.update(wh_dict)
     return output_data
 
 
@@ -256,7 +282,7 @@ async def get_page_content(url):
                 task = asyncio.create_task(get_data_from_json(item))
                 tasks.append(task)
 
-            curr_list = await asyncio.gather(*tasks, return_exceptions=True)
+            curr_list = await asyncio.gather(*tasks)
 
             curr_list = [item for item in curr_list if not isinstance(item, Exception)]
             data_list.extend(curr_list)
@@ -276,7 +302,7 @@ async def get_page_content2(url):
                 task = asyncio.create_task(get_data_from_json2(item))
                 tasks.append(task)
 
-            curr_list = await asyncio.gather(*tasks, return_exceptions=True)
+            curr_list = await asyncio.gather(*tasks)
 
             curr_list = [item for item in curr_list if not isinstance(item, Exception)]
             data_list.extend(curr_list)
@@ -301,7 +327,7 @@ async def get_content_catalog2(article):
         url = f'https://catalog.wb.ru/sellers/catalog?appType=1&couponsGeo=12,3,18,15,21&curr=rub&dest=-1029256,-102269,-2162196,-1257786'\
               f'&emp=0&lang=ru&locale=ru&page={page}&pricemarginCoeff=1.0&reg=0&regions=80,64,83,4,38,33,70,82,69,68,86,75,30,40,48,1,22,66,31,71'\
                                                                                  f'&sort=popular&spp=0&supplier={article}'
-        data_list += await get_page_content2(url=url)
+        data_list += await get_page_content(url=url)
     return data_list
 
 
