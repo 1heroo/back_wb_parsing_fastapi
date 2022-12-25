@@ -82,7 +82,17 @@ async def get_data(category_url, price_ot, price_do, vendor_code=None, country=N
                              headers={'Content-Disposition': f'attachment; filename="filtered_data.xlsx"'})
 
 @app.post('/get-seller-table-in-excel/')
-async def get_seller_cards(seller_id):
+async def get_seller_cards(seller_id=None, ogrn=None):
+    if seller_id is None and ogrn is None:
+        return {'message': 'Введите одно из двух'}
+    if ogrn:
+        df = pd.read_csv('seller_info.csv')
+        seller_id = (df[df.ogrn == str(ogrn)]) 
+        if seller_id.empty:
+            return 'ogrn not found'
+        seller_id = int(seller_id.iloc[0].id)
+        
+        
     data_list = await get_content_catalog2(seller_id)
     data = pd.DataFrame(data_list)
 

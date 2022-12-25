@@ -27,7 +27,6 @@ async def parse_card(article):
             data['detail1'] = json.loads(await response2.text()) if response2.status == 200 else f'{article} does not exist'
     return {"article": data}
 
-
 def make_head(article: int):
     global head
     if article < 14400000:
@@ -277,7 +276,12 @@ async def get_page_content(url):
     headers = {'Accept': "*/*", 'User-Agent': "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
-            data = json.loads(await response.text())
+            try:
+                data = json.loads(await response.text())
+            except: 
+                print(response)
+                return []
+
             for item in data['data']['products']:
                 task = asyncio.create_task(get_data_from_json(item))
                 tasks.append(task)
@@ -298,8 +302,9 @@ async def get_page_content2(url):
     async with aiohttp.ClientSession() as session:
         async with session.get(url, headers=headers) as response:
             data = json.loads(await response.text())
+            
             for item in data['data']['products']:
-                task = asyncio.create_task(get_data_from_json2(item))
+                task = asyncio.create_task(get_data_from_json(item))
                 tasks.append(task)
 
             curr_list = await asyncio.gather(*tasks)
